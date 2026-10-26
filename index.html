@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05060f">
+<title>手控粒子花朵</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --accent:#b46cff; --accent2:#ff5ad8;
+    --panel:rgba(22,20,44,.78); --border:rgba(180,140,255,.18);
+    --text:#eceaff; --muted:#9a96bd;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  html,body{height:100%;background:#03040a;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;overflow:hidden}
+  body{display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(1200px 800px at 50% 30%,#0d0b24 0%,#05060f 55%,#020208 100%)}
+  .phone{position:relative;width:100%;height:100%;overflow:hidden;
+    background:radial-gradient(120% 80% at 50% 35%,#120f30 0%,#070818 50%,#04040c 100%)}
+  @media (min-width:600px){
+    .phone{width:400px;height:min(860px,calc(100vh - 40px));border-radius:36px;
+      border:1px solid rgba(170,140,255,.22);
+      box-shadow:0 0 0 8px #0a0a16,0 0 0 9px rgba(160,130,255,.12),0 30px 120px rgba(120,60,255,.25)}
+  }
+  video#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:0;transition:opacity .6s;z-index:0}
+  .phone.cam-on video#cam{opacity:1}
+  .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,4,14,.55),rgba(4,4,14,.25) 40%,rgba(4,4,14,.7));opacity:0;transition:opacity .6s;z-index:1;pointer-events:none}
+  .phone.cam-on .shade{opacity:1}
+  canvas#c{position:absolute;inset:0;width:100%;height:100%;z-index:2;touch-action:none;cursor:pointer}
+  header{position:absolute;top:0;left:0;right:0;z-index:5;padding:calc(18px + env(safe-area-inset-top)) 22px 0;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+  header h1{font-size:20px;font-weight:700;letter-spacing:1px;text-shadow:0 0 18px rgba(200,120,255,.45)}
+  header p{font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:1px}
+  .gear{pointer-events:auto;width:38px;height:38px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);display:grid;place-items:center;cursor:pointer;color:#d9d2ff;transition:transform .4s,background .2s}
+  .gear:hover{background:rgba(255,255,255,.09)}
+  .gear.on{transform:rotate(90deg);background:rgba(180,108,255,.2)}
+  .bottom{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:0 16px calc(14px + env(safe-area-inset-bottom))}
+  .bar{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .btn{height:62px;border-radius:16px;border:1px solid var(--border);background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    color:var(--text);font-size:12.5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;transition:transform .15s,border-color .2s,box-shadow .2s;font-family:inherit}
+  .btn:active{transform:scale(.95)}
+  .btn svg{width:20px;height:20px}
+  .btn.primary{border-color:rgba(190,120,255,.85);box-shadow:0 0 0 1px rgba(190,120,255,.3) inset,0 0 22px rgba(170,90,255,.35);background:linear-gradient(180deg,rgba(120,60,220,.35),rgba(60,30,130,.35))}
+  .btn.active{border-color:rgba(255,120,220,.7)}
+  .foot{text-align:center;font-size:11.5px;color:var(--muted);margin-top:10px;min-height:16px;letter-spacing:.5px}
+  .foot .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff5ad8;margin-right:6px;box-shadow:0 0 8px #ff5ad8;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  .tip{position:absolute;left:16px;bottom:128px;z-index:5;padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--border);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    font-size:12px;color:var(--muted);opacity:0;transform:translateY(8px);transition:opacity .5s,transform .5s;pointer-events:none;max-width:230px}
+  .tip b{display:block;color:var(--text);font-size:13.5px;margin-bottom:5px}
+  .tip.show{opacity:1;transform:none}
+  .panel{position:absolute;left:12px;right:12px;bottom:118px;z-index:7;padding:18px 18px 20px;border-radius:20px;background:rgba(24,22,48,.9);border:1px solid var(--border);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    opacity:0;transform:translateY(16px) scale(.98);pointer-events:none;transition:opacity .3s,transform .3s;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .panel.show{opacity:1;transform:none;pointer-events:auto}
+  .panel h3{font-size:13.5px;font-weight:600;margin-bottom:12px}
+  .sw{display:flex;justify-content:space-between;margin-bottom:20px}
+  .sw button{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;outline:none;transition:transform .2s;box-shadow:0 0 12px var(--g)}
+  .sw button.sel{border-color:#fff;transform:scale(1.12)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--accent2) var(--p,50%),rgba(255,255,255,.15) var(--p,50%));outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 12px var(--accent)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:none}
+  .toast{position:absolute;left:50%;bottom:150px;z-index:9;transform:translate(-50%,10px);padding:10px 16px;border-radius:12px;background:rgba(28,26,52,.92);border:1px solid var(--border);font-size:13px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap;display:flex;gap:6px;align-items:center}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .err{color:#ff9db0}
+</style>
+</head>
+<body>
+<div class="phone" id="phone">
+  <video id="cam" playsinline muted></video>
+  <div class="shade"></div>
+  <canvas id="c"></canvas>
+
+  <header>
+    <div><h1>手控粒子花朵</h1><p>用你的手，唤醒一朵花</p></div>
+    <button class="gear" id="gear" aria-label="设置">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div class="tip" id="tip"><b id="tipTitle">手势控制花朵</b><span id="tipText">向上滑动：绽放　向下滑动：收拢</span></div>
+
+  <div class="panel" id="panel">
+    <h3>花朵颜色</h3>
+    <div class="sw" id="swatches"></div>
+    <h3>花朵大小</h3>
+    <input type="range" id="size" min="0.6" max="1.4" step="0.01" value="1">
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="bottom">
+    <div class="bar">
+      <button class="btn" id="btnCam">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <span id="camLabel">开启摄像头</span>
+      </button>
+      <button class="btn primary" id="btnBloom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#f0b8ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.8C10 6.5 10.6 3.6 12 2.5c1.4 1.1 2 4 0 7.3zM12 14.2c-2 3.3-1.4 6.2 0 7.3 1.4-1.1 2-4 0-7.3zM9.8 12C6.5 14 3.6 13.4 2.5 12c1.1-1.4 4-2 7.3 0zM14.2 12c3.3-2 6.2-1.4 7.3 0-1.1 1.4-4 2-7.3 0z"/><path d="M10.4 10.4C7.2 8.4 6.6 6.6 7 5.6c1-.4 2.8.2 4.4 3.4M13.6 13.6c3.2 2 3.8 3.8 3.4 4.8-1 .4-2.8-.2-4.4-3.4M13.6 10.4c2-3.2 3.8-3.8 4.8-3.4.4 1-.2 2.8-3.4 4.4M10.4 13.6c-2 3.2-3.8 3.8-4.8 3.4-.4-1 .2-2.8 3.4-4.4"/></svg>
+        <span>绽放 / 收拢</span>
+      </button>
+      <button class="btn" id="btnReset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        <span>重置位置</span>
+      </button>
+    </div>
+    <div class="foot" id="foot">演示模式：移动鼠标 / 点击绽放</div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+// ---------- palettes ----------
+const PALETTES = {
+  pink:   {name:'粉色', swatch:'#ff4fc8', base:[255,70,200], tip:[190,110,255], edge:[255,170,240], core:[255,240,255], leaf:[120,90,255]},
+  purple: {name:'紫色', swatch:'#9b5cff', base:[150,80,255], tip:[230,110,255], edge:[210,170,255], core:[255,235,255], leaf:[90,110,255]},
+  blue:   {name:'蓝色', swatch:'#4f6bff', base:[70,110,255], tip:[120,190,255], edge:[170,210,255], core:[235,245,255], leaf:[70,140,255]},
+  ice:    {name:'冰白', swatch:'#d8ecff', base:[150,200,255], tip:[235,245,255], edge:[255,255,255], core:[255,255,255], leaf:[110,170,255]},
+  green:  {name:'绿色', swatch:'#3ddc84', base:[50,220,140], tip:[170,255,200], edge:[200,255,220], core:[245,255,240], leaf:[40,190,150]},
+  orange: {name:'橙色', swatch:'#ff8a3d', base:[255,120,50], tip:[255,200,90], edge:[255,220,160], core:[255,250,230], leaf:[255,110,80]},
+};
+const PAL_KEYS = Object.keys(PALETTES);
+let palKey = 'pink';
+
+// ---------- dom ----------
+const $ = id => document.getElementById(id);
+const phone = $('phone'), canvas = $('c'), ctx = canvas.getContext('2d');
+const video = $('cam');
+let W=0,H=0,DPR=1;
+function resize(){
+  const r = phone.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = r.width; H = r.height;
+  canvas.width = Math.round(W*DPR); canvas.height = Math.round(H*DPR);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ---------- tinted glow sprites ----------
+const TINTS = 10;           // gradient steps for petal colors
+let sprites = {};           // key -> array of canvases
+function makeSprite(rgb, size=32){
+  const c = document.createElement('canvas'); c.width=c.height=size;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  const [r,gg,b] = rgb;
+  gr.addColorStop(0,`rgba(255,255,255,1)`);
+  gr.addColorStop(0.18,`rgba(${r},${gg},${b},0.95)`);
+  gr.addColorStop(0.45,`rgba(${r},${gg},${b},0.28)`);
+  gr.addColorStop(1,`rgba(${r},${gg},${b},0)`);
+  g.fillStyle = gr; g.fillRect(0,0,size,size);
+  return c;
+}
+const mix = (a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t].map(Math.round);
+function buildSprites(){
+  const p = PALETTES[palKey];
+  sprites.petal = []; for(let i=0;i<TINTS;i++) sprites.petal.push(makeSprite(mix(p.base,p.tip,i/(TINTS-1))));
+  sprites.edge = makeSprite(p.edge);
+  sprites.core = makeSprite(p.core, 64);
+  sprites.leaf = []; for(let i=0;i<4;i++) sprites.leaf.push(makeSprite(mix(p.leaf,p.base,i/3*0.6)));
+  sprites.halo = makeSprite(p.base, 128);
+}
+buildSprites();
+
+// ---------- particles ----------
+const rnd = (a=0,b=1)=>a+Math.random()*(b-a);
+const LAYERS = [ // inner -> outer
+  {n:5, Lc:1.02, Rc:0.24, Lo:0.78, th:0.40, ac:1.30, wo:0.30, delay:0.22, off:0},
+  {n:7, Lc:1.10, Rc:0.29, Lo:1.05, th:0.85, ac:1.15, wo:0.42, delay:0.10, off:0.5},
+  {n:8, Lc:1.16, Rc:0.33, Lo:1.30, th:1.25, ac:1.05, wo:0.50, delay:0.00, off:0.25},
+];
+const isMobile = Math.min(screen.width, screen.height) < 600;
+const PETAL_PER = isMobile ? 150 : 210;
+const P = [];   // all particles
+
+LAYERS.forEach((L,li)=>{
+  for(let k=0;k<L.n;k++){
+    const phi = (k + L.off)/L.n * Math.PI*2;
+    for(let j=0;j<PETAL_PER;j++){
+      let u = Math.pow(Math.random(),0.85), v, kind;
+      const r = Math.random();
+      if(r<0.42){ v = Math.random()<0.5?-1:1; kind=1; }          // edge
+      else if(r<0.55){ v = 0; kind=2; }                           // center vein
+      else if(r<0.62){ v = rnd(-1,1)*0.5; kind=2; u = Math.pow(Math.random(),0.6);} // side veins
+      else { v = rnd(-1,1); kind=0; }                             // fill
+      P.push({t:0, li, phi, u, v, kind, s:Math.random(), dust: Math.random()<0.07});
+    }
+  }
+});
+// core / stamens
+for(let i=0;i<(isMobile?160:240);i++) P.push({t:1, a:rnd(0,Math.PI*2), r:Math.pow(Math.random(),0.5), h:Math.random(), s:Math.random(), stamen: Math.random()<0.55});
+// stem
+for(let i=0;i<(isMobile?220:300);i++) P.push({t:2, s:Math.random(), j:rnd(-1,1), q:Math.random()});
+// leaves
+for(let side=0; side<2; side++) for(let i=0;i<(isMobile?220:300);i++){
+  const r = Math.random(); let v;
+  if(r<0.5) v = Math.random()<0.5?-1:1; else if(r<0.65) v=0; else v=rnd(-1,1);
+  P.push({t:3, side, u:Math.random(), v, edge:Math.abs(v)===1||v===0, s:Math.random()});
+}
+// floating sparkles
+const SPARK_N = isMobile?260:380;
+for(let i=0;i<SPARK_N;i++) P.push({t:4, x:rnd(-2,2), y:rnd(-1.2,2.2), z:rnd(-1.5,1.5), vy:rnd(0.03,0.15), s:Math.random(), i});
+
+// ---------- state ----------
+const state = {
+  bloom:0, bloomTarget:0,
+  size:1, sizeTarget:1,
+  ox:0, oy:0, oxT:0, oyT:0,      // offset (fraction of W/H)
+  mx:0, my:0, mxT:0, myT:0,      // demo sway
+  camOn:false, handSeen:0,
+};
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease = t => t<.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+const smooth = t => t*t*(3-2*t);
+
+// ---------- render ----------
+let last = performance.now(), T = 0;
+function frame(now){
+  const dt = Math.min(0.05,(now-last)/1000); last = now; T += dt;
+  const k = 1-Math.exp(-dt*(state.camOn&&state.handSeen>0?5:1.6));
+  state.bloom += (state.bloomTarget-state.bloom)*k;
+  const k2 = 1-Math.exp(-dt*4);
+  state.size += (state.sizeTarget-state.size)*k2;
+  state.ox += (state.oxT-state.ox)*k2; state.oy += (state.oyT-state.oy)*k2;
+  state.mx += (state.mxT-state.mx)*(1-Math.exp(-dt*3)); state.my += (state.myT-state.my)*(1-Math.exp(-dt*3));
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function draw(){
+  const c = ctx;
+  c.setTransform(1,0,0,1,0,0);
+  c.clearRect(0,0,canvas.width,canvas.height);
+  c.setTransform(DPR,0,0,DPR,0,0);
+  c.globalCompositeOperation = 'lighter';
+
+  const b = state.bloom;
+  const S = Math.min(W, H*0.62) * 0.2 * state.size;
+  const cx = W*0.5 + state.ox*W + state.mx*W*0.04;
+  const cy = H*0.40 + state.oy*H + state.my*H*0.02 - b*S*0.15;
+  const stemLen = 2.35;
+
+  // camera
+  const pitch = 0.30 + b*0.45;              // look down into the flower when open
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const yawPlant = Math.sin(T*0.35)*0.22 + state.mx*0.35;
+  const cyw = Math.cos(yawPlant), syw = Math.sin(yawPlant);
+  const headYaw = T*0.18;
+  const sway = Math.sin(T*0.9)*0.05 + state.mx*0.12;   // head lateral sway (units)
+  const F = 7;
+
+  // project: (x,y,z) in plant space -> screen; returns scale
+  let PX=0, PY=0, PS=1;
+  const cp0 = Math.cos(0.30), sp0 = Math.sin(0.30);
+  function proj(x,y,z,flat){
+    const cpp = flat ? cp0 : cp, spp = flat ? sp0 : sp;
+    // yaw plant
+    const x1 = x*cyw + z*syw, z1 = -x*syw + z*cyw;
+    // pitch (rotate around X): camera above
+    const y2 = y*cpp - z1*spp, z2 = y*spp + z1*cpp;
+    const sc = F/(F + z2);
+    PX = cx + x1*S*sc; PY = cy - y2*S*sc; PS = sc;
+  }
+
+  // halo behind head
+  const haloA = 0.08 + 0.22*b;
+  c.globalAlpha = haloA;
+  const hr = S*(1.4 + b*1.6);
+  proj(sway, 0.45 - b*0.1, 0);
+  c.drawImage(sprites.halo, PX-hr, PY-hr, hr*2, hr*2);
+
+  const ch = Math.cos(headYaw), sh = Math.sin(headYaw);
+
+  for(let i=0;i<P.length;i++){
+    const p = P[i];
+    let x,y,z, a, size, spr;
+    if(p.t===0){
+      const L = LAYERS[p.li];
+      const lb = ease(clamp((b - L.delay)/(1 - 0.24)));
+      const u = p.u, v = p.v;
+      // closed bud profile
+      const w = Math.pow(Math.sin(Math.PI*Math.pow(u,0.78)),0.9);
+      const radC = L.Rc * Math.pow(Math.sin(Math.PI*Math.min(1,Math.pow(u,0.8)*0.97+0.02)),0.9) * (0.9+0.1*Math.abs(v));
+      const yC = L.Lc*u*1.05;
+      // open cone profile
+      const th = L.th*lb;
+      const radO = L.Lo*u*Math.sin(th) + 0.04;
+      const yO = L.Lo*u*Math.cos(th) + L.Lo*u*u*0.38*Math.sin(th) + v*v*0.16*u*L.Lo*Math.sin(th);
+      const rad = radC + (radO-radC)*lb;
+      const yy = yC + (yO-yC)*lb;
+      const halfC = L.ac * Math.PI / L.n * w;
+      const hw = L.wo * Math.pow(Math.sin(Math.PI*Math.pow(u,0.9)),1.2);      // real lateral half-width (lens / pointed tip)
+      const halfO = Math.min(hw/Math.max(rad,0.06), 1.6*Math.PI/L.n);
+      const ang = p.phi + v*(halfC + (halfO-halfC)*lb) + headYaw;
+      // slight petal thickness/cup
+      const cup = (1-Math.abs(v))*0.03*u;
+      let px = Math.cos(ang)*(rad - cup), pz = Math.sin(ang)*(rad - cup);
+      y = yy - 0.05;
+      // shimmer & drift
+      const n = Math.sin(T*1.7 + p.s*40)*0.012*(0.4+b);
+      px += n; y += Math.cos(T*1.3 + p.s*30)*0.01;
+      a = p.kind===1 ? 0.75 : p.kind===2 ? 0.40 : 0.22;
+      a *= (0.55 + 0.45*u) * (0.5 + 0.5*lb);
+      size = p.kind===1 ? 1.7 : 1.3;
+      if(p.dust && b>0.05){
+        const ph = (T*0.12 + p.s) % 1;
+        const d = ph*0.9*b;
+        px += Math.cos(ang)*d; pz += Math.sin(ang)*d; y += d*0.8;
+        a *= (1-ph); size = 1.6;
+      }
+      x = px + sway; z = pz;
+      spr = p.kind===1 && Math.random()<0.002 ? sprites.edge : sprites.petal[Math.min(TINTS-1, (u*TINTS)|0)];
+      if(p.kind===1 && u>0.55) spr = sprites.edge;
+      a *= 0.75 + 0.25*Math.sin(T*3 + p.s*50);
+    } else if(p.t===1){
+      // core & stamens
+      const vis = 0.12 + 0.88*smooth(clamp(b*1.3));
+      if(p.stamen){
+        const ang = p.a + headYaw;
+        const rr = (0.06 + 0.26*p.h)*(0.3+0.7*b);
+        x = Math.cos(ang)*rr*p.r*1.2 + sway; z = Math.sin(ang)*rr*p.r*1.2;
+        y = 0.05 + p.h*0.28*(0.4+0.6*b) - 0.05;
+        a = 0.65*vis; size = p.h>0.9 ? 3.2 : 1.6; spr = p.h>0.85 ? sprites.core : sprites.edge;
+      } else {
+        const rr = 0.11*p.r*(0.5+0.5*b);
+        x = Math.cos(p.a)*rr + sway; z = Math.sin(p.a)*rr; y = 0.08 + (p.h-0.5)*0.12;
+        a = 0.9*vis; size = 2.6; spr = sprites.core;
+      }
+      a *= 0.7 + 0.3*Math.sin(T*4 + p.s*60);
+    } else if(p.t===2){
+      // stem: s=0 at head, 1 at bottom
+      const s = p.s;
+      const curve = Math.sin(s*Math.PI)*0.08;
+      x = sway*(1-s)*(1-s) + curve + p.j*0.012;
+      y = -s*stemLen - 0.02;
+      z = p.j*0.01;
+      a = (p.q<0.3?0.7:0.3) * (1 - s*0.75);
+      size = p.q<0.3 ? 2.0 : 1.4; spr = sprites.leaf[(p.q*4)|0];
+    } else if(p.t===3){
+      // leaves
+      const dir = p.side ? 1 : -1;
+      const s0 = p.side ? 0.52 : 0.62;              // attach point along stem
+      const bx = sway*(1-s0)*(1-s0) + Math.sin(s0*Math.PI)*0.08;
+      const by = -s0*stemLen;
+      const len = p.side ? 0.95 : 0.85;
+      const u = p.u;
+      const width = Math.sin(Math.PI*Math.pow(u,0.7))*0.17*len;
+      // leaf midline goes outward & up with a droop
+      const ox = dir*u*len*0.92;
+      const oy = u*len*0.55 - u*u*len*0.25 + p.v*width*0.55;
+      const oz = p.v*width*0.7 + u*0.15*dir;
+      const flutter = Math.sin(T*1.4 + p.side*2)*0.03*u;
+      x = bx + ox + p.v*width*(-0.3)*dir; y = by + oy + flutter; z = oz;
+      a = p.edge ? 0.55 : 0.14; size = p.edge?1.8:1.5;
+      spr = sprites.leaf[p.edge?1:2];
+    } else {
+      // sparkles
+      const vis = clamp(p.i/SPARK_N < 0.22 + 0.78*b ? 1 : 0);
+      if(!vis) continue;
+      p.y += p.vy*(0.3+b)*0.016;
+      if(p.y > 2.6){ p.y = -1.2; p.x = rnd(-2,2); p.z = rnd(-1.5,1.5); }
+      const spread = 0.55 + 0.6*b;
+      x = p.x*spread + sway + Math.sin(T*0.6 + p.s*20)*0.1; y = p.y*0.85 - 0.2; z = p.z*spread;
+      const tw = Math.pow(0.5+0.5*Math.sin(T*(1.5+p.s*3) + p.s*100), 3);
+      a = tw*(0.35+0.55*b) * clamp(1 - (Math.abs(p.y-0.5))/2.2);
+      size = 1.3 + p.s*2.2; spr = p.s>0.8 ? sprites.core : sprites.petal[(p.s*TINTS)|0];
+      // bypass head yaw: sparkles in plant space
+      proj(x,y,z);
+      const d = size*PS*(DPR>1?1.6:1.8)*S/90;
+      c.globalAlpha = a; c.drawImage(spr, PX-d, PY-d, d*2, d*2);
+      continue;
+    }
+    if(a<=0.01) continue;
+    proj(x,y,z, p.t===2||p.t===3);
+    const d = size*PS*S/90*1.6;
+    c.globalAlpha = Math.min(1,a);
+    c.drawImage(spr, PX-d, PY-d, d*2, d*2);
+  }
+
+  // bright core flare
+  const fa = 0.12 + 0.6*smooth(clamp(b*1.2));
+  proj(sway, 0.12, 0);
+  const fr = S*(0.18 + 0.32*b)*(0.95+0.05*Math.sin(T*3));
+  c.globalAlpha = fa; c.drawImage(sprites.core, PX-fr, PY-fr, fr*2, fr*2);
+  c.globalAlpha = fa*0.6; c.drawImage(sprites.halo, PX-fr*2.4, PY-fr*2.4, fr*4.8, fr*4.8);
+
+  c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  // remember head screen pos for hit testing
+  proj(sway, 0.4, 0); headPos.x = PX; headPos.y = PY; headPos.r = S*(0.9 + b*0.9);
+}
+const headPos = {x:0,y:0,r:0};
+requestAnimationFrame(t=>{last=t;requestAnimationFrame(frame)});
+
+// ---------- UI helpers ----------
+const tip = $('tip'), toastEl = $('toast'), foot = $('foot');
+let tipTimer, toastTimer;
+function showTip(title, text, ms=4000){
+  $('tipTitle').textContent = title; $('tipText').textContent = text;
+  tip.classList.add('show'); clearTimeout(tipTimer);
+  if(ms) tipTimer = setTimeout(()=>tip.classList.remove('show'), ms);
+}
+function toast(msg, ms=1800){
+  toastEl.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>' + msg;
+  toastEl.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toastEl.classList.remove('show'), ms);
+}
+function setFoot(html){ foot.innerHTML = html; }
+const DEMO_FOOT = '演示模式：移动鼠标 / 点击绽放';
+function toggleBloom(){ state.bloomTarget = state.bloomTarget > 0.5 ? 0 : 1; }
+
+$('btnBloom').addEventListener('click', e=>{ e.stopPropagation(); toggleBloom(); });
+$('btnReset').addEventListener('click', e=>{
+  e.stopPropagation();
+  state.oxT = state.oyT = 0; state.mxT = state.myT = 0;
+  state.sizeTarget = 1; sizeInput.value = 1; updateSlider();
+  state.bloomTarget = 0;
+  toast('已重置到初始位置');
+});
+
+// settings panel
+const panel = $('panel'), gear = $('gear');
+gear.addEventListener('click', e=>{ e.stopPropagation(); panel.classList.toggle('show'); gear.classList.toggle('on'); });
+const sw = $('swatches');
+PAL_KEYS.forEach(key=>{
+  const bt = document.createElement('button');
+  bt.style.background = PALETTES[key].swatch; bt.style.setProperty('--g', PALETTES[key].swatch+'88');
+  bt.title = PALETTES[key].name; bt.setAttribute('aria-label', PALETTES[key].name);
+  if(key===palKey) bt.classList.add('sel');
+  bt.addEventListener('click', ()=>{ palKey=key; buildSprites(); [...sw.children].forEach(x=>x.classList.remove('sel')); bt.classList.add('sel'); });
+  sw.appendChild(bt);
+});
+const sizeInput = $('size');
+function updateSlider(){ const v=(sizeInput.value-sizeInput.min)/(sizeInput.max-sizeInput.min)*100; sizeInput.style.setProperty('--p', v+'%'); }
+sizeInput.addEventListener('input', ()=>{ state.sizeTarget = parseFloat(sizeInput.value); updateSlider(); });
+updateSlider();
+panel.addEventListener('pointerdown', e=>e.stopPropagation());
+
+// ---------- demo pointer / touch ----------
+let down = null;
+canvas.addEventListener('pointermove', e=>{
+  if(state.camOn && state.handSeen>0) return;
+  const r = canvas.getBoundingClientRect();
+  const nx = ((e.clientX - r.left)/r.width - 0.5)*2, ny = ((e.clientY - r.top)/r.height - 0.5)*2;
+  state.mxT = clamp(nx,-1,1); state.myT = clamp(ny,-1,1);
+});
+canvas.addEventListener('pointerleave', ()=>{ state.mxT = 0; state.myT = 0; });
+canvas.addEventListener('pointerdown', e=>{
+  if(panel.classList.contains('show')){ panel.classList.remove('show'); gear.classList.remove('on'); down=null; return; }
+  down = {x:e.clientX, y:e.clientY, t:performance.now()};
+});
+canvas.addEventListener('pointerup', e=>{
+  if(!down) return;
+  const dx = e.clientX-down.x, dy = e.clientY-down.y;
+  if(Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)){
+    state.bloomTarget = dy < 0 ? 1 : 0;
+  } else if(Math.hypot(dx,dy) < 12){
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if(Math.hypot(x-headPos.x, y-headPos.y) < headPos.r*1.3 || e.pointerType!=='mouse') toggleBloom();
+  }
+  down = null;
+});
+setTimeout(()=>showTip('手势控制花朵','向上滑动：绽放　向下滑动：收拢', 5000), 900);
+
+// ---------- camera + MediaPipe ----------
+const MP_VER = '0.10.14';
+const MP_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}`;
+const MODEL_URLS = [
+  'hand_landmarker.task',  // local copy next to index.html (works offline / in regions where Google is blocked)
+  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+];
+let landmarker = null, stream = null, rafVid = 0, lastVideoTime = -1, camBusy = false;
+
+async function loadLandmarker(){
+  if(landmarker) return landmarker;
+  const vision = await import(`${MP_URL}/vision_bundle.mjs`);
+  const fileset = await vision.FilesetResolver.forVisionTasks(`${MP_URL}/wasm`);
+  let lastErr;
+  for(const url of MODEL_URLS){
+    for(const delegate of ['GPU','CPU']){
+      try{
+        landmarker = await vision.HandLandmarker.createFromOptions(fileset, {
+          baseOptions:{ modelAssetPath:url, delegate }, runningMode:'VIDEO', numHands:1,
+          minHandDetectionConfidence:0.5, minHandPresenceConfidence:0.5, minTrackingConfidence:0.5,
+        });
+        return landmarker;
+      }catch(err){ lastErr = err; }
+    }
+  }
+  throw lastErr || new Error('模型加载失败');
+}
+
+function camError(msg){
+  setFoot(`<span class="err">⚠ ${msg}</span>`);
+  showTip('无法开启摄像头', msg, 6000);
+  setTimeout(()=>{ if(!state.camOn) setFoot(DEMO_FOOT); }, 6000);
+}
+
+async function startCam(){
+  if(camBusy) return; camBusy = true;
+  try{
+    if(!window.isSecureContext){ camError('需要 HTTPS 或 localhost 才能使用摄像头'); return; }
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ camError('当前浏览器不支持摄像头访问'); return; }
+    setFoot('<span class="dot"></span>正在请求摄像头权限...');
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:640}, height:{ideal:480}}, audio:false});
+    }catch(err){
+      const n = err && err.name;
+      camError(n==='NotAllowedError'||n==='SecurityError' ? '摄像头权限被拒绝，请在浏览器设置中允许' :
+               n==='NotFoundError'||n==='OverconstrainedError' ? '未检测到可用摄像头' :
+               n==='NotReadableError' ? '摄像头被其他应用占用' : '摄像头开启失败：'+(err.message||n));
+      return;
+    }
+    video.srcObject = stream; await video.play().catch(()=>{});
+    state.camOn = true; phone.classList.add('cam-on'); $('camLabel').textContent = '关闭摄像头'; $('btnCam').classList.add('active');
+    setFoot('<span class="dot"></span>摄像头已开启 · 正在加载手势模型...');
+    try{ await loadLandmarker(); }
+    catch(err){ console.warn(err); setFoot('<span class="err">⚠ 手势模型加载失败（网络问题），可继续点击按钮操作</span>'); return; }
+    if(!state.camOn) return;
+    setFoot('<span class="dot"></span>摄像头已开启 · 识别手势中...');
+    showTip('手势控制花朵','张开手掌：绽放　握拳：收拢　移动手掌：花朵跟随', 5000);
+    lastVideoTime = -1; detectLoop();
+  } finally { camBusy = false; }
+}
+function stopCam(){
+  state.camOn = false; state.handSeen = 0;
+  cancelAnimationFrame(rafVid);
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  video.srcObject = null;
+  phone.classList.remove('cam-on'); $('camLabel').textContent = '开启摄像头'; $('btnCam').classList.remove('active');
+  state.oxT = 0; state.oyT = 0;
+  setFoot(DEMO_FOOT);
+}
+$('btnCam').addEventListener('click', e=>{ e.stopPropagation(); state.camOn ? stopCam() : startCam(); });
+
+const dist = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y, (a.z||0)-(b.z||0));
+let missFrames = 0;
+function detectLoop(){
+  if(!state.camOn || !landmarker) return;
+  rafVid = requestAnimationFrame(detectLoop);
+  if(video.readyState < 2 || video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  let res;
+  try{ res = landmarker.detectForVideo(video, performance.now()); }catch(e){ return; }
+  const lm = res && res.landmarks && res.landmarks[0];
+  if(!lm){
+    if(++missFrames > 20 && state.handSeen){ state.handSeen = 0; setFoot('<span class="dot"></span>摄像头已开启 · 识别手势中...'); }
+    return;
+  }
+  missFrames = 0;
+  if(!state.handSeen) setFoot('<span class="dot"></span>摄像头已开启 · 已识别到手 ✋');
+  state.handSeen = 1;
+  // openness: average fingertip-to-wrist distance normalised by palm size
+  const wrist = lm[0], palm = dist(lm[0], lm[9]) || 1e-3;
+  const tips = [4,8,12,16,20];
+  let s = 0; tips.forEach(i=> s += dist(lm[i], wrist)); s /= tips.length;
+  const ratio = s / palm;                 // ~1.0 fist, ~2.0 open hand
+  state.bloomTarget = clamp((ratio - 1.05) / (1.85 - 1.05));
+  // palm centre -> screen (account for object-fit:cover + mirror)
+  const ids = [0,5,9,13,17]; let px=0, py=0; ids.forEach(i=>{ px+=lm[i].x; py+=lm[i].y; }); px/=5; py/=5;
+  const vw = video.videoWidth||640, vh = video.videoHeight||480;
+  const sc = Math.max(W/vw, H/vh), dw = vw*sc, dh = vh*sc;
+  const sx = (W - ((px*dw) - (dw-W)/2)), sy = py*dh - (dh-H)/2;   // mirrored x
+  state.oxT = clamp(sx/W - 0.5, -0.38, 0.38);
+  state.oyT = clamp(sy/H - 0.40, -0.25, 0.30);
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden && state.camOn) stopCam(); });
+
+// expose for testing
+window.__flower = state;
+})();
+</script>
+</body>
+</html>
